@@ -82,3 +82,20 @@ if [ -f drivers/kernelsu/apk_sign.c ]; then
     sed -i '1i #ifndef EXPECTED_HASH\n#define EXPECTED_HASH "c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6"\n#endif' drivers/kernelsu/apk_sign.c
     head -12 drivers/kernelsu/apk_sign.c
 fi
+
+# ---- 追加修复2：KSU v0.9.5 SELinux 兼容性（4.19 内核）----
+if [ -f drivers/kernelsu/selinux/selinux.c ]; then
+    echo "[patch2] fixing KSU selinux.c for 4.19 kernel"
+    # 1) selinux_enforcing 在外部声明（内核安全模块里导出）
+    sed -i '1i #ifndef selinux_enforcing\nextern int selinux_enforcing;\n#endif' drivers/kernelsu/selinux/selinux.c
+    # 2) 删除与内核冲突的 current_sid 定义
+    python3 - <<'PYINNER'
+import re
+p='drivers/kernelsu/selinux/selinux.c'
+s=open(p).read()
+s=re.sub(r'static inline u32 current_sid\(void\)\s*\{[^}]*\}', '', s, count=1)
+open(p,'w').write(s)
+print('[patch2] removed duplicate current_sid')
+PYINNER
+    head -8 drivers/kernelsu/selinux/selinux.c
+fi
