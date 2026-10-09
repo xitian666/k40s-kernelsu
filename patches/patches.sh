@@ -99,3 +99,20 @@ print('[patch2] removed duplicate current_sid')
 PYINNER
     head -8 drivers/kernelsu/selinux/selinux.c
 fi
+
+# ---- 追加修复3：KSU rules.c SELinux API 适配（4.19.325 用新 API）----
+if [ -f drivers/kernelsu/selinux/rules.c ]; then
+    echo "[patch3] fixing KSU rules.c for 4.19.325 kernel API"
+    python3 - <<'PYINNER3'
+import re
+p='drivers/kernelsu/selinux/rules.c'
+s=open(p).read()
+# 1) policydb -> selinux_state.ss->policydb
+s = s.replace('db = &policydb;', 'db = &rcu_dereference(selinux_state.ss)->policydb;')
+# 2) selinux_status_update_policyload(0) -> 传 state
+s = re.sub(r'selinux_status_update_policyload\(\s*0\s*\)', 'selinux_status_update_policyload(&selinux_state, 0)', s)
+open(p,'w').write(s)
+print('[patch3] rules.c patched')
+PYINNER3
+    grep -n "rcu_dereference(selinux_state.ss)->policydb\|selinux_status_update_policyload(&selinux_state" drivers/kernelsu/selinux/rules.c | head -5
+fi
